@@ -1,6 +1,7 @@
 # dataset loaders, training, evaluation, cosine similarity
-import torch
 import os
+import json
+import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
@@ -8,6 +9,21 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np, random
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
+
+def _safe_pyplot():
+    # Import locally to avoid outer-scope shadowing
+    import matplotlib.pyplot as _plt
+    fig_attr = getattr(_plt, "figure", None)
+    # If figure isn't callable, something shadowed pyplot
+    if not callable(fig_attr):
+        src = getattr(_plt, "__file__", "<no __file__>")
+        raise RuntimeError(
+            f"matplotlib.pyplot.figure is not callable. "
+            f"You're likely shadowing pyplot. "
+            f'pyplot came from: {src}; type(figure)={type(fig_attr)}'
+        )
+    return _plt
 
 def add_label_noise(dataset, flip_prob=0.1):
     noisy_targets = []
@@ -142,7 +158,32 @@ def save_results(acc_dict, save_dir):
         np.save(os.path.join(save_dir, f"{name}_acc.npy"), np.array(arr))
     print(f"Results saved in: {save_dir}")
 
+def save_cosine_sims(cosine_sims: dict, save_dir: str, as_csv: bool = True):
+    """
+    cosine_sims format:
+      {"conv1.weight": {"Client 1": [...], "Client 2": [...], ...}, "conv2.weight": {...}}
+    Saves:
+      - per-layer .npz with keys "<client>"
+      - optional per-layer CSVs
+      - a metadata JSON summarizing keys
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    meta = {}
+    for layer, client_dict in cosine_sims.items():
+        layer_safe = layer.replace(".", "_")
+        # NPZ (one file per layer)
+        arrays = {client: np.asarray(series) for client, series in client_dict.items()}
+        npz_path = os.path.join(save_dir, f"{layer_safe}.npz")
+        np.savez(npz_path, **arrays)
+        meta[layer] = sorted(list(client_dict.keys()))
+    # write a small manifest
+    with open(os.path.join(save_dir, "_manifest.json"), "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"Cosine similarities saved in: {save_dir}")
+
+
 def plot_accuracy(acc_dict, title, save_path=None):
+    plt = _safe_pyplot()
     plt.figure(figsize=(8, 5))
     for label, acc in acc_dict.items():
         plt.plot(range(1, len(acc) + 1), acc, marker='^', label=label)
@@ -159,6 +200,7 @@ def plot_accuracy(acc_dict, title, save_path=None):
 
 def plot_cosine_similarities(cosine_sims_dict, key_name, save_dir=None):
     """cosine_sims_dict: {'conv1.weight': {'Client 1': [...], 'Client 2': [...]}}"""
+    plt = _safe_pyplot()
     for key, clients_dict in cosine_sims_dict.items():
         plt.figure(figsize=(8, 5))
         for client, values in clients_dict.items():
