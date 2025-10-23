@@ -1,7 +1,7 @@
 import yaml
 import argparse
 from algorithms import global_svd, local_b_svd
-from utils import plot_accuracy, plot_cosine_similarities, save_results
+from utils import plot_accuracy, plot_cosine_similarities, save_results, save_cosine_sims
 
 
 
@@ -21,7 +21,6 @@ if __name__ == "__main__":
     }
     save_results(acc_dict, "./results")
     plot_accuracy(acc_dict, "Federated Learning Accuracy Comparison", "./results/plots/accuracy_comparison.png")
-
     plot_cosine_similarities(res_global["cosine_sims"], "Global SVD Cosine Similarity", "./results/plots/global_svd")
     plot_cosine_similarities(res_localb["cosine_sims_A"], "Local-B SVD (A matrices)", "./results/plots/localb_A")
     plot_cosine_similarities(res_localb["cosine_sims_B"], "Local-B SVD (B matrices)", "./results/plots/localb_B")
